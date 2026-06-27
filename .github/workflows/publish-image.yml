@@ -1,0 +1,75 @@
+name: Publish dev container image
+
+# Builds the prebuilt nRF Connect SDK dev container and publishes it to GHCR
+# with the SAME tag as the NCS version (plus :latest).
+#   ghcr.io/<owner>/ncs-container:v3.3.0
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - ".devcontainer/**"
+      - ".github/workflows/publish-image.yml"
+  workflow_dispatch:
+    inputs:
+      ncs_version:
+        description: "NCS version tag (must exist as ghcr.io/nrfconnect/sdk-nrf-toolchain:<tag>)"
+        default: "v3.3.0"
+        required: true
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository }} # <owner>/ncs-container
+
+jobs:
+  build-and-push:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Free up disk space
+        run: |
+          sudo rm -rf /usr/share/dotnet /opt/ghc /usr/local/lib/android /opt/hostedtoolcache/CodeQL
+          sudo docker image prune --all --force || true
+          df -h
+
+      - name: Resolve NCS version
+        id: ncs
+        run: |
+          v="${{ github.event.inputs.ncs_version }}"
+          [ -z "$v" ] && v="v3.3.0"
+          echo "version=$v" >> "$GITHUB_OUTPUT"
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: .devcontainer/Dockerfile
+          build-args: |
+            NCS_VERSION=${{ steps.ncs.outputs.version }}
+          tags: |
+            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ steps.ncs.outputs.version }}
+            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest
+          push: true
+          provenance: false
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Summary
+        run: |
+          echo "Published: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ steps.ncs.outputs.version }}" >> "$GITHUB_STEP_SUMMARY"
+          echo "Make the package **public** (or grant Codespaces access) so devcontainer can pull it." >> "$GITHUB_STEP_SUMMARY"
