@@ -33,6 +33,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
         tio \
         gdb-multiarch \
         openssh-client \
+        openssh-server \
         telnet \
         less \
         nano \
