@@ -41,6 +41,19 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && rm -rf /var/lib/apt/lists/*
 
 # ---------------------------------------------------------------------------
+# Relabel the toolchain to the NCS version.
+# The v3.3.0 toolchain bundle is registered in toolchains.json under its build
+# PR tag (e.g. "PR-27656"), so the nRF Connect for VS Code "Toolchain" list shows
+# "PR-..." instead of v3.3.0. Rewrite ncs_versions to the real version tag.
+# ---------------------------------------------------------------------------
+RUN for f in /opt/ncs/toolchains.json /opt/ncs/toolchains/toolchains.json; do \
+        if [ -f "$f" ]; then \
+            sed -i -E "s/\"PR-[0-9]+\"/\"${NCS_VERSION}\"/g" "$f"; \
+            echo "relabeled $f:"; cat "$f"; \
+        fi; \
+    done
+
+# ---------------------------------------------------------------------------
 # Bake the NCS source tree (prebuild).
 # Shallow + narrow keeps the image as small as practical while still building.
 # ---------------------------------------------------------------------------
